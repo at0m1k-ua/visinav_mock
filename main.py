@@ -8,6 +8,7 @@ import threading
 import logging
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
+import json
 
 
 logging.basicConfig(level=logging.INFO)
@@ -24,17 +25,19 @@ IMAGES = {
 
 
 def send_video(camera_name):
-    image = Image.open(IMAGES[camera_name])
-    while True:
-        img_byte_arr = BytesIO()
-        image.save(img_byte_arr, format="JPEG")
-        img_byte_arr.seek(0)
-        socketio.emit(
-            "camera_frame",
-            {"camera_name": camera_name, "frame": img_byte_arr.getvalue()},
-            broadcast=True
-        )
-        time.sleep(0.1)
+    with Image.open(IMAGES[camera_name]) as image:
+        logger.info(f"Loaded image size: {image.size}")
+        while True:
+            img_byte_arr = BytesIO()
+            image.save(img_byte_arr, format="JPEG")
+            img_byte_arr.seek(0)
+            socketio.emit(
+                "camera_frame",
+                {"camera_name": camera_name, "frame": img_byte_arr.getvalue()},
+                to=None  # Send to all clients
+            )
+            logger.info(f"Emitting frame for {camera_name}, size: {len(img_byte_arr.getvalue())}")
+            time.sleep(0.1)
 
 
 @socketio.on('connect')
@@ -52,6 +55,13 @@ def handle_disconnect():
 
 @socketio.on('start_camera')
 def handle_start_camera(data):
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            emit("camera_status", {"status": "error", "message": "Invalid JSON"})
+            logger.error("Received invalid JSON data")
+            return
     camera_name = data.get("camera_name")
     logger.info(f"Received 'start_camera' request with data: {data}")
     if camera_name in IMAGES:

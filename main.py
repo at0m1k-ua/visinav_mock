@@ -38,7 +38,6 @@ def send_video(camera_name):
                     {"camera_name": camera_name, "frame": img_byte_arr.getvalue()},
                     to=None,  # Send to all clients
                 )
-                logger.info(f"Emitting frame for {camera_name}")
                 time.sleep(0.1)
     except Exception as e:
         logger.error(f"Error in camera thread for {camera_name}: {e}")
@@ -68,7 +67,6 @@ def telemetry_broadcast():
             "sensorsState": {"humidity": 70.1, "brightness": 59.8, "unitsCount": 1},
         }
         socketio.emit("telemetry_data", telemetry_data)
-        logger.info("Broadcasted telemetry data")
         time.sleep(1)
 
 
@@ -114,6 +112,26 @@ def handle_set_task(data):
 def handle_run_command(data):
     logger.info(f"Received 'run_command' request with data: {data}")
     emit("command_status", {"result": "ok"})
+
+
+@socketio.on("actuator_command")
+def handle_actuator_command(data):
+    if isinstance(data, str):
+        logger.warning("Received string data, attempting to parse as JSON")
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            emit("actuator_status", {"status": "error", "message": "Invalid JSON format"})
+            logger.error("Received invalid JSON data for actuator command")
+            return
+
+    actuator_id = data.get("actuator")
+    if isinstance(actuator_id, int):
+        logger.info(f"Received actuator command: Actuator ID = {actuator_id}")
+        emit("actuator_status", {"actuator": actuator_id, "status": "command_received"})
+    else:
+        emit("actuator_status", {"status": "error", "message": "Invalid actuator ID"})
+        logger.warning(f"Invalid actuator ID received: {actuator_id}")
 
 
 if __name__ == "__main__":

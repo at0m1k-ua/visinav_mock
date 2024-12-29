@@ -40,6 +40,33 @@ def send_video(camera_name):
             time.sleep(0.1)
 
 
+def telemetry_broadcast():
+    while True:
+        telemetry_data = {
+            "height": 3.5,
+            "speed": 1.0,
+            "battery": 42,
+            "coordinates": {
+                "lat": 50.450079,
+                "lon": 30.4533602
+            },
+            "motorsHealth": {
+                "LF": True,
+                "RF": True,
+                "LR": False,
+                "RR": True
+            },
+            "sensorsState": {
+                "humidity": 70.1,
+                "brightness": 59.8,
+                "unitsCount": 1
+            }
+        }
+        socketio.emit("telemetry_data", telemetry_data)
+        logger.info("Broadcasted telemetry data")
+        time.sleep(1)
+
+
 @socketio.on('connect')
 def handle_connect():
     client_ip = request.remote_addr
@@ -72,32 +99,6 @@ def handle_start_camera(data):
         logger.warning(f"Invalid camera name: {camera_name}")
 
 
-@socketio.on('get_telemetry')
-def handle_get_telemetry():
-    logger.info("Received 'get_telemetry' request")
-    telemetry_data = {
-        "height": 3.5,
-        "speed": 1.0,
-        "battery": 42,
-        "coordinates": {
-            "lat": 50.450079,
-            "lon": 30.4533602
-        },
-        "motorsHealth": {
-            "LF": True,
-            "RF": True,
-            "LR": False,
-            "RR": True
-        },
-        "sensorsState": {
-            "humidity": 70.1,
-            "brightness": 59.8,
-            "unitsCount": 1
-        }
-    }
-    emit("telemetry_data", telemetry_data)
-
-
 @socketio.on('set_task')
 def handle_set_task(data):
     logger.info(f"Received 'set_task' request with data: {data}")
@@ -111,6 +112,7 @@ def handle_run_command(data):
 
 
 if __name__ == '__main__':
+    threading.Thread(target=telemetry_broadcast, daemon=True).start()
     host = "0.0.0.0"
     port = 5000
     logger.info(f"Starting WebSocket server on {host}:{port}")

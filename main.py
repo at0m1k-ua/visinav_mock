@@ -22,38 +22,31 @@ IMAGES = {
     "bottom": "bottom.jpg",
 }
 
-current_camera = {"name": "front_left", "thread": None, "lock": threading.Lock()}
+current_camera = {"name": "front_left", "lock": threading.Lock()}
 
 
-def send_video(camera_name):
+def send_video():
     try:
-        with Image.open(IMAGES[camera_name]) as image:
-            logger.info(f"Loaded image for camera: {camera_name}, size: {image.size}")
-            while True:
-                img_byte_arr = BytesIO()
-                image.save(img_byte_arr, format="JPEG")
-                img_byte_arr.seek(0)
-                socketio.emit(
-                    "camera_frame",
-                    {"camera_name": camera_name, "frame": img_byte_arr.getvalue()},
-                    to=None,  # Send to all clients
-                )
-                time.sleep(0.1)
+        while True:
+            with current_camera["lock"]:
+                camera_name = current_camera["name"]
+                with Image.open(IMAGES[camera_name]) as image:
+                    img_byte_arr = BytesIO()
+                    image.save(img_byte_arr, format="JPEG")
+                    img_byte_arr.seek(0)
+                    socketio.emit(
+                        "camera_frame",
+                        {"camera_name": camera_name, "frame": img_byte_arr.getvalue()}
+                    )
+            time.sleep(0.1)
     except Exception as e:
-        logger.error(f"Error in camera thread for {camera_name}: {e}")
+        logger.error(f"Error in camera thread: {e}")
 
 
-def start_camera_stream(camera_name):
-    with current_camera["lock"]:
-        if current_camera["thread"] and current_camera["thread"].is_alive():
-            logger.info(f"Stopping current camera: {current_camera['name']}")
-            current_camera["thread"].do_run = False  # Signal to stop the thread
-            current_camera["thread"].join()
-
-        logger.info(f"Starting new stream for camera: {camera_name}")
-        new_thread = threading.Thread(target=send_video, args=(camera_name,), daemon=True)
-        new_thread.start()
-        current_camera.update({"name": camera_name, "thread": new_thread})
+def start_camera_stream():
+    logger.info("Starting camera stream thread")
+    stream_thread = threading.Thread(target=send_video, daemon=True)
+    stream_thread.start()
 
 
 def telemetry_broadcast():
@@ -92,10 +85,12 @@ def handle_start_camera(data):
             emit("camera_status", {"status": "error", "message": "Invalid JSON"})
             logger.error("Received invalid JSON data")
             return
+
     camera_name = data.get("camera_name")
     logger.info(f"Received 'start_camera' request with data: {data}")
     if camera_name in IMAGES:
-        start_camera_stream(camera_name)
+        with current_camera["lock"]:
+            current_camera["name"] = camera_name
         emit("camera_status", {"camera_name": camera_name, "status": "streaming"})
     else:
         emit("camera_status", {"camera_name": camera_name, "status": "error", "message": "Invalid camera name"})
@@ -135,8 +130,8 @@ def handle_actuator_command(data):
 
 
 if __name__ == "__main__":
-    # Start the default camera
-    start_camera_stream("front_left")
+    # Start the camera stream
+    start_camera_stream()
 
     # Start telemetry broadcast
     threading.Thread(target=telemetry_broadcast, daemon=True).start()

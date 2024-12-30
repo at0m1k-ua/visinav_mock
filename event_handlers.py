@@ -2,6 +2,7 @@ import json
 from flask import request
 import logging
 from camera import current_camera, IMAGES
+from telemetry import telemetry
 
 logger = logging.getLogger("EventHandlers")
 
@@ -35,7 +36,8 @@ def register_event_handlers(socketio):
                 current_camera["name"] = camera_name
             socketio.emit("camera_status", {"camera_name": camera_name, "status": "streaming"})
         else:
-            socketio.emit("camera_status", {"camera_name": camera_name, "status": "error", "message": "Invalid camera name"})
+            socketio.emit("camera_status",
+                          {"camera_name": camera_name, "status": "error", "message": "Invalid camera name"})
             logger.warning(f"Invalid camera name: {camera_name}")
 
     @socketio.on("set_task")
@@ -65,3 +67,17 @@ def register_event_handlers(socketio):
             socketio.emit("actuator_status", {"actuator": actuator_id, "status": "command_received"})
         else:
             logger.warning(f"Invalid actuator ID received: {actuator_id}")
+
+    @socketio.on("button_press")
+    def handle_button_press(data):
+        height = telemetry.get_telemetry()["height"]
+        if data == "increase_height":
+            telemetry.update_height(height + 0.5)
+            logger.info(f"Height increased to {height} meters")
+        elif data == "decrease_height":
+            telemetry.update_height(max(0.0, height - 0.5))
+            logger.info(f"Height decreased to {height} meters")
+        else:
+            logger.warning(f"Unknown button press command: {data}")
+
+        socketio.emit("telemetry", {"height": height})

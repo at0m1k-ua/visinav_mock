@@ -6,10 +6,13 @@ logger = logging.getLogger("TelemetryLogger")
 
 class TelemetryData:
     def __init__(self):
-        self.data = {"height": 0.0}
+        self.data = {"height": 0.0, "coordinates": {"lat": 50.450079, "lon": 30.4533602}}
 
     def update_height(self, height):
         self.data["height"] = height
+
+    def update_coordinates(self, height):
+        self.data["coordinates"] = height
 
     def get_telemetry(self):
         return self.data
@@ -25,7 +28,7 @@ def start_telemetry_broadcast(socketio):
             "height": telemetry.get_telemetry()["height"],
             "speed": 1.0,
             "battery": 98,
-            "coordinates": {"lat": 50.450079, "lon": 30.4533602},
+            "coordinates": telemetry.get_telemetry()["coordinates"],
             "motorsHealth": {"LF": True, "RF": True, "LR": False, "RR": True},
             "sensorsState": {"humidity": 70.1, "brightness": 59.8, "unitsCount": 1},
         }

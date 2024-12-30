@@ -81,3 +81,28 @@ def register_event_handlers(socketio):
             logger.warning(f"Unknown button press command: {data}")
 
         socketio.emit("telemetry", {"height": height})
+
+    @socketio.on("set_drone_destination")
+    def handle_set_drone_destination(data):
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                socketio.emit("destination_status", {"status": "error", "message": "Invalid JSON format"})
+                logger.error("Invalid JSON received in 'set_drone_destination'")
+                return
+
+        latitude = data.get("lat")
+        longitude = data.get("lon")
+        logger.warning(f"Received 'set_drone_destination' with latitude={latitude}, longitude={longitude}")
+
+        if isinstance(latitude, float) and isinstance(longitude, float):
+            telemetry.update_coordinates({'lat': latitude, 'lon': longitude})
+            logger.info(f"Drone destination updated to Latitude: {latitude}, Longitude: {longitude}")
+            socketio.emit("destination_status", {"status": "ok", "latitude": latitude, "longitude": longitude})
+        else:
+            logger.warning(f"Invalid destination coordinates received: latitude={latitude}, longitude={longitude}")
+            socketio.emit("destination_status", {
+                "status": "error",
+                "message": "Invalid destination coordinates"
+            })
